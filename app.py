@@ -891,7 +891,7 @@ def export_to_excel(df_filtered):
         # Autofit column widths dynamically
         for i, col in enumerate(df_export.columns):
             max_len = max(
-                df_export[col].astype(str).map(len).max(),
+                df_export[col].fillna('').astype(str).map(len).max(),
                 len(col)
             ) + 4
             worksheet.set_column(i, i, min(max(max_len, 10), 40))
