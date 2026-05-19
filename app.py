@@ -383,7 +383,7 @@ def save_record(report_date, category, sub_category, location, quantity, unit, s
             os.path.join(current_dir, 'Finished PDFs')
         ])
         
-                for sd in search_dirs:
+        for sd in search_dirs:
             fp = find_file_case_insensitive(sd, original_filename)
             if fp:
                 found_path = fp
@@ -1266,7 +1266,7 @@ if menu == "📊 Master Dashboard":
                     if st.button(f"🚨 Confirm Permanent Deletion of {len(ids_to_del)} Selected Records"):
                         conn_del = sqlite3.connect(DB_NAME)
                         cursor_del = conn_del.cursor()
-                                                for d_id in ids_to_del:
+                        for d_id in ids_to_del:
                             # Delete referenced PDF with SAFETY check
                             cursor_del.execute("SELECT pdf_path FROM master_registry WHERE id = ?", (d_id,))
                             row_del = cursor_del.fetchone()
@@ -1289,7 +1289,7 @@ if menu == "📊 Master Dashboard":
                     if st.button("💣 Execute Wiping Database & Factory Reset Now"):
                         conn_reset = sqlite3.connect(DB_NAME)
                         cursor_reset = conn_reset.cursor()
-                                                cursor_reset.execute("SELECT pdf_path FROM master_registry")
+                        cursor_reset.execute("SELECT pdf_path FROM master_registry")
                         rows_reset = cursor_reset.fetchall()
                         for r_item in rows_reset:
                             if r_item[0] and os.path.exists(str(r_item[0])):
