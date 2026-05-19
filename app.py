@@ -284,12 +284,15 @@ def get_setting(key, default=None):
 
 def find_file_case_insensitive(directory, filename):
     """Searches a directory for a filename case-insensitively and strips trailing spaces."""
-    if not os.path.exists(directory):
+    if not os.path.exists(directory) or not os.path.isdir(directory):
         return None
-    target = filename.strip().lower()
-    for f in os.listdir(directory):
-        if f.strip().lower() == target:
-            return os.path.abspath(os.path.join(directory, f))
+    try:
+        target = filename.strip().lower()
+        for f in os.listdir(directory):
+            if f.strip().lower() == target:
+                return os.path.abspath(os.path.join(directory, f))
+    except (OSError, PermissionError):
+        pass
     return None
 
 def normalize_date_to_db(date_str):
