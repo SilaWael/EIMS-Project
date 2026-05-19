@@ -383,15 +383,30 @@ def save_record(report_date, category, sub_category, location, quantity, unit, s
             os.path.join(current_dir, 'Finished PDFs')
         ])
         
-        for sd in search_dirs:
+                for sd in search_dirs:
             fp = find_file_case_insensitive(sd, original_filename)
             if fp:
                 found_path = fp
                 break
                 
         if found_path:
-            pdf_path = found_path
-            pdf_filename = os.path.basename(found_path)
+            # COPY the file to pdf_archive to ensure it exists within the repo and can be uploaded to GitHub
+            safe_date = report_date.replace("-", "")
+            safe_cat = category.replace(" ", "_").replace("&", "and")
+            safe_sub = sub_category.replace(" ", "_").replace("/", "_")
+            original_ext = os.path.splitext(found_path)[1]
+            pdf_filename = f"{safe_date}_{safe_cat}_{safe_sub}{original_ext}"
+            new_archive_path = os.path.join(ARCHIVE_DIR, pdf_filename)
+            
+            # Copy only if it doesn't already exist in archive to save time
+            if not os.path.exists(new_archive_path):
+                try:
+                    shutil.copy2(found_path, new_archive_path)
+                except Exception:
+                    pass
+            
+            pdf_path = new_archive_path
+            pdf_filename = os.path.basename(new_archive_path)
             
     detailed_levels_json = json.dumps(detailed_levels_list) if detailed_levels_list else None
     
@@ -863,11 +878,12 @@ def export_to_excel(df_filtered):
         for col_num, value in enumerate(df_export.columns.values):
             worksheet.write(0, col_num, value, header_format)
             
-        # Apply body formats and adjust column widths
+                # Apply body formats and adjust column widths
         for row_idx in range(len(df_export)):
             for col_idx in range(len(df_export.columns)):
                 val = df_export.iloc[row_idx, col_idx]
-                if isinstance(val, (int, float)):
+                # Check if value is a number and NOT NaN
+                if isinstance(val, (int, float)) and pd.notnull(val):
                     worksheet.write_number(row_idx + 1, col_idx, val, number_format)
                 else:
                     worksheet.write(row_idx + 1, col_idx, str(val) if pd.notnull(val) else "", cell_format)
@@ -1250,13 +1266,15 @@ if menu == "📊 Master Dashboard":
                     if st.button(f"🚨 Confirm Permanent Deletion of {len(ids_to_del)} Selected Records"):
                         conn_del = sqlite3.connect(DB_NAME)
                         cursor_del = conn_del.cursor()
-                        for d_id in ids_to_del:
-                            # Delete referenced PDF
+                                                for d_id in ids_to_del:
+                            # Delete referenced PDF with SAFETY check
                             cursor_del.execute("SELECT pdf_path FROM master_registry WHERE id = ?", (d_id,))
                             row_del = cursor_del.fetchone()
                             if row_del and row_del[0] and os.path.exists(str(row_del[0])):
-                                try: os.remove(row_del[0])
-                                except Exception: pass
+                                # SAFETY: Only delete if file is inside the project's pdf_archive
+                                if ARCHIVE_DIR in str(row_del[0]):
+                                    try: os.remove(row_del[0])
+                                    except Exception: pass
                             cursor_del.execute("DELETE FROM master_registry WHERE id = ?", (d_id,))
                         conn_del.commit()
                         conn_del.close()
@@ -1271,12 +1289,14 @@ if menu == "📊 Master Dashboard":
                     if st.button("💣 Execute Wiping Database & Factory Reset Now"):
                         conn_reset = sqlite3.connect(DB_NAME)
                         cursor_reset = conn_reset.cursor()
-                        cursor_reset.execute("SELECT pdf_path FROM master_registry")
+                                                cursor_reset.execute("SELECT pdf_path FROM master_registry")
                         rows_reset = cursor_reset.fetchall()
                         for r_item in rows_reset:
                             if r_item[0] and os.path.exists(str(r_item[0])):
-                                try: os.remove(r_item[0])
-                                except Exception: pass
+                                # SAFETY: Only delete if file is inside the project's pdf_archive
+                                if ARCHIVE_DIR in str(r_item[0]):
+                                    try: os.remove(r_item[0])
+                                    except Exception: pass
                         cursor_reset.execute("DELETE FROM master_registry")
                         cursor_reset.execute("DELETE FROM sqlite_sequence WHERE name='master_registry'")
                         conn_reset.commit()
