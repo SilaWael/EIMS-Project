@@ -541,6 +541,7 @@ def render_dashboard():
     col_options = {
         'id': t('col.id', LANG),
         'report_date': t('col.date', LANG),
+        'sub_category': t('col.description', LANG),
         'discipline_id': t('col.discipline', LANG),
         'system_id': t('col.system', LANG),
         'component_id': t('col.component', LANG),
@@ -607,7 +608,8 @@ def render_dashboard():
 
     display_cols = [c for c in st.session_state['visible_columns'] if c in df_display.columns]
     if not display_cols:
-        display_cols = ['id', 'report_date', 'discipline_id', 'system_id', 'quantity']
+        # Default visible columns (when no preference saved)
+        display_cols = ['id', 'report_date', 'sub_category', 'discipline_id', 'road_id', 'stationing', 'quantity', 'unit', 'status']
     df_display = df_display[display_cols].copy()
 
     # Rename columns to localized labels

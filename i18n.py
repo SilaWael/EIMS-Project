@@ -139,6 +139,7 @@ TRANSLATIONS = {
         # Table columns
         'col.id': 'ID',
         'col.date': 'Report Date',
+        'col.description': 'Description / Activity',
         'col.discipline': 'Discipline',
         'col.system': 'System',
         'col.component': 'Component',
@@ -402,6 +403,7 @@ TRANSLATIONS = {
         # Table columns
         'col.id': 'الرقم',
         'col.date': 'تاريخ التقرير',
+        'col.description': 'الوصف / النشاط',
         'col.discipline': 'التخصص',
         'col.system': 'النظام',
         'col.component': 'المكوّن',
