@@ -1,1 +1,0 @@
-"""EIMS UI components package."""
