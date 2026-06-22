@@ -1,0 +1,15 @@
+# NOTE: eims.db IS included in the repository intentionally.
+# Workflow: Update data locally → push eims.db to GitHub → Streamlit auto-refreshes for viewers.
+# Do NOT add eims.db back to this list.
+
+# Python cache
+__pycache__/
+*.py[cod]
+*.pyc
+
+# Windows system files
+desktop.ini
+Thumbs.db
+
+# Local run script (Windows-only)
+run_app.bat
