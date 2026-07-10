@@ -1,0 +1,54 @@
+# OS / Editor
+desktop.ini
+Thumbs.db
+.DS_Store
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
+*.code-workspace
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.venv
+venv/
+env/
+.env
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Project data folders (runtime-generated — NOT committed)
+../Finished PDFs/
+../Processed_Audits/
+../CSV Data Base Files/
+../EIMS_CSV_Files/
+../Backup Bundles/
+pdf_archive/
+
+# Database (auto-created by init_db())
+eims.db
+*.db
+*.db-*
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+*.backup
+
+# Arabic/system folders (auto-generated)
+*?????*
+*????? ????? ??????*
+
+# Documentation / workflow (not needed to run the app)
+../AGENTS.md
+../PROCEDURES.html
