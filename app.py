@@ -443,7 +443,16 @@ def delete_record(record_id):
 def load_data():
     """Loads all records from database."""
     conn = sqlite3.connect(DB_NAME)
-    df = pd.read_sql_query("SELECT * FROM master_registry ORDER BY report_date DESC, id DESC", conn)
+    # Robust date ordering: handles both YYYY-MM-DD and DD-MM-YYYY in the same column
+    df = pd.read_sql_query("""
+        SELECT * FROM master_registry
+        ORDER BY
+            CASE
+                WHEN report_date LIKE '____-__-__' THEN report_date
+                ELSE substr(report_date, 7, 4) || '-' || substr(report_date, 4, 2) || '-' || substr(report_date, 1, 2)
+            END DESC,
+            id DESC
+    """, conn)
     conn.close()
     if "report_date" in df.columns:
         df["report_date"] = df["report_date"].apply(format_date_to_display)
