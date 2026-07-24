@@ -19,4 +19,22 @@ __pycache__/
 
 # Original rules preserved
 *.log
+<<<<<<< HEAD
 ```
+=======
+logs/
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+*.backup
+
+# Arabic/system folders (auto-generated)
+*?????*
+*????? ????? ??????*
+
+# Documentation / workflow (not needed to run the app)
+../AGENTS.md
+../PROCEDURES.htmlfix_dates.py
+>>>>>>> dc59fd1 (Remove fix_dates.py and add to .gitignore)
