@@ -1,0 +1,6 @@
+# Streamlit page config
+[server]
+maxUploadSize = 500
+
+[browser]
+gatherUsageStats = false

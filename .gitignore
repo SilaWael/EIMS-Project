@@ -1,40 +1,34 @@
-```
-# Compiled and build artifacts
-*.pyc
-__pycache__/
-
-# Logs and temp files
-*.log
-*.tmp
-*.swp
-
-# Environment
+# Environment variables
 .env
 .env.local
-*.env.*
+*.env
 
-# Editors
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+.pytest_cache/
+
+# Streamlit
+.streamlit/secrets.toml
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE
 .vscode/
 .idea/
 
-# Original rules preserved
+# Database (local only — production is in Supabase)
+eims.db
+*.db
+*.sqlite
+*.sqlite3
+
+# Logs
 *.log
-<<<<<<< HEAD
-```
-=======
-logs/
-
-# Temporary files
-*.tmp
-*.temp
-*.bak
-*.backup
-
-# Arabic/system folders (auto-generated)
-*?????*
-*????? ????? ??????*
-
-# Documentation / workflow (not needed to run the app)
-../AGENTS.md
-../PROCEDURES.htmlfix_dates.py
->>>>>>> dc59fd1 (Remove fix_dates.py and add to .gitignore)
