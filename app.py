@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+﻿# -*- coding: utf-8 -*-
 import streamlit as st
 import pandas as pd
 import json
@@ -1078,6 +1078,23 @@ if menu == "\U0001F4CA Master Dashboard":
             
         # Show Main Dataframe
         df_display = df_filtered.copy()
+
+        # Keep the stored Location canonical, but make audited side coverage visible in the registry.
+        # LHS/RHS belong in technical details rather than the Location database field.
+        if "location" in df_display.columns:
+            scope_text = (
+                df_display.get("remarks", pd.Series("", index=df_display.index)).fillna("").astype(str)
+                + " "
+                + df_display.get("activity_detail", pd.Series("", index=df_display.index)).fillna("").astype(str)
+            )
+            both_sides = (
+                scope_text.str.contains("LHS", case=False, na=False)
+                & scope_text.str.contains("RHS", case=False, na=False)
+                & ~df_display["location"].fillna("").astype(str).str.contains("LHS|RHS", case=False, na=False)
+            )
+            df_display.loc[both_sides, "location"] = (
+                df_display.loc[both_sides, "location"].astype(str) + " (LHS & RHS)"
+            )
         
         # Ensure we keep only the selected columns that exist
         display_cols = [c for c in st.session_state['visible_columns'] if c in df_display.columns]
@@ -1091,7 +1108,7 @@ if menu == "\U0001F4CA Master Dashboard":
             "report_date": st.column_config.TextColumn("\U0001F4C5 Report Date"),
             "category": st.column_config.TextColumn("\U0001F4C2 Main Category"),
             "sub_category": st.column_config.TextColumn("\U0001F3AF Sub-category / Layer"),
-            "location": st.column_config.TextColumn("\U0001F4CD Location Name"),
+            "location": st.column_config.TextColumn("\U0001F4CD Location Name / Side"),
             "stationing": st.column_config.TextColumn("\U0001F6E3\ufe0f Stationing (Chainage)"),
             "activity_detail": st.column_config.TextColumn("\U0001F52C Technical Activity Details"),
             "quantity": st.column_config.NumberColumn("\U0001F4CF Quantity Approved", format="%.2f"),
@@ -1393,3 +1410,4 @@ elif menu == "\U0001F4E5 Import Engineering Reports":
                 # Clear session state
                 st.session_state['parsed_records'] = []
                 st.session_state['pdf_files_dict'] = {}
+
