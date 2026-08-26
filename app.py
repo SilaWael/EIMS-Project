@@ -1054,18 +1054,24 @@ if menu == "\U0001F4CA Master Dashboard":
             "remarks": "\U0001F4AC Consultant Remarks & Tolerance",
             "pdf_filename": "\U0001F4C4 PDF Reference"
         }
-        
+
+        # Default visibility when no engineer preference has been saved yet.
+        # PDF Reference is hidden by default (Eng. Wael's standing preference);
+        # it can always be re-enabled via the expander below.
+        DEFAULT_VISIBLE_COLUMNS = [k for k in col_options.keys() if k != "pdf_filename"]
+
         if 'visible_columns' not in st.session_state:
             saved_cols_str = get_setting('visible_columns')
             if saved_cols_str:
                 try:
                     st.session_state['visible_columns'] = json.loads(saved_cols_str)
                 except Exception:
-                    st.session_state['visible_columns'] = list(col_options.keys())
+                    st.session_state['visible_columns'] = DEFAULT_VISIBLE_COLUMNS
             else:
-                st.session_state['visible_columns'] = list(col_options.keys())
+                st.session_state['visible_columns'] = DEFAULT_VISIBLE_COLUMNS
             
         with st.expander("\U0001F441\ufe0f Customize Table Column Visibility & Save Settings"):
+            st.caption("ℹ️ Hiding a column from the table's own header menu (⋮ → Hide column) is temporary and resets on rerun. Use this panel for permanent visibility settings.")
             selected_cols = st.multiselect(
                 "Choose which columns to display in the main registry. Your settings are saved automatically.",
                 options=list(col_options.keys()),
