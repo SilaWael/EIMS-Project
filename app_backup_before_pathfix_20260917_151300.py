@@ -13,73 +13,17 @@ from bs4 import BeautifulSoup
 # ==============================================================================
 #  CONFIGURATION & CONSTANTS
 # ==============================================================================
-# --- Application folder / project base folder (the software now lives on drive D:) ---
-APP_DIR  = os.path.abspath(os.path.dirname(__file__))
-BASE_DIR = os.path.dirname(APP_DIR)   # D:\My Work\Infra Daily Report
+DB_NAME = "eims.db"
+ARCHIVE_DIR = "pdf_archive"
 
-DB_NAME     = os.path.join(APP_DIR, "eims.db")
-ARCHIVE_DIR = os.path.join(APP_DIR, "pdf_archive")
+# --- Reference / output directories (absolute paths after moving the project to drive D) ---
+PDF_DIR  = r"D:\My Work\Infra Daily Report\Finished PDFs"     # scanned PDF inspection reports
+HTML_DIR = r"D:\My Work\Infra Daily Report\Processed_Audits"  # processed HTML audit reports
 
-# --- Default reference / output directories ---
-# These are only DEFAULTS. The real values are stored in the database
-# (system_settings table) and can be changed at any time from the app sidebar
-# -> "Paths & References Settings". Changing them there takes effect immediately
-# and is persisted, so the user never has to edit the source code again.
-DEFAULT_PDF_DIR  = os.path.join(BASE_DIR, "Finished PDFs")     # scanned PDF inspection reports
-DEFAULT_HTML_DIR = os.path.join(BASE_DIR, "Processed_Audits")  # processed HTML audit reports
-
-# Backwards compatible module level names (kept so legacy code paths keep working)
-PDF_DIR  = DEFAULT_PDF_DIR
-HTML_DIR = DEFAULT_HTML_DIR
-
-
-def _ensure_dir(path):
-    """Creates a folder if it does not exist yet (best effort)."""
-    try:
-        if path and not os.path.exists(path):
-            os.makedirs(path, exist_ok=True)
-    except Exception:
-        pass
-
-
-def get_pdf_dir():
-    """Currently configured folder that holds the scanned PDF reports."""
-    path = get_setting("pdf_dir", "") or DEFAULT_PDF_DIR
-    _ensure_dir(path)
-    return path
-
-
-def get_html_dir():
-    """Currently configured folder that holds the processed HTML audits."""
-    path = get_setting("html_dir", "") or DEFAULT_HTML_DIR
-    _ensure_dir(path)
-    return path
-
-
-def get_extra_pdf_dirs():
-    """Extra folders (one per line) that are also searched for PDF references."""
-    raw = get_setting("extra_pdf_dirs", "") or ""
-    return [p.strip() for p in re.split(r"[\r\n;]+", raw) if p.strip()]
-
-
-def get_pdf_search_dirs():
-    """Ordered list of folders EIMS searches when resolving a referenced PDF file."""
-    candidates = [
-        get_pdf_dir(),
-        *get_extra_pdf_dirs(),
-        get_setting("custom_pdf_dir", ""),
-        get_html_dir(),
-        os.path.join(APP_DIR, "Finished PDFs"),
-        os.path.join(APP_DIR, "pdf_archive"),
-        os.path.join(BASE_DIR, "Finished PDFs"),
-        os.path.join(BASE_DIR, "Processed_Audits"),
-        BASE_DIR,
-    ]
-    dirs = []
-    for d in candidates:
-        if d and os.path.isdir(d) and d not in dirs:
-            dirs.append(d)
-    return dirs
+# Ensure directories exist
+for _d in (ARCHIVE_DIR, PDF_DIR, HTML_DIR):
+    if not os.path.exists(_d):
+        os.makedirs(_d, exist_ok=True)
 
 # Set Streamlit Page Configuration
 st.set_page_config(
@@ -429,9 +373,29 @@ def save_record(report_date, category, sub_category, location, quantity, unit, s
             with open(pdf_path, "wb") as f:
                 f.write(pdf_file.getbuffer())
     elif original_filename:
-        # Feature: Auto-link to the configured PDF / audit folders directly without copying
+        # Feature: Auto-link to Finished PDFs or Processed_Audits directly without copying
+        current_dir = os.path.abspath(os.path.dirname(__file__))
+        outer_dir = os.path.dirname(current_dir)
+        
         found_path = None
-        for sd in get_pdf_search_dirs():
+        search_dirs = []
+        
+        # Read and include custom PDF search directory if configured
+        custom_dir = get_setting("custom_pdf_dir", "")
+        if custom_dir and os.path.exists(custom_dir):
+            search_dirs.append(custom_dir)
+            
+        search_dirs.extend([
+            PDF_DIR,
+            HTML_DIR,
+            os.path.join(outer_dir, 'Finished PDFs'),
+            os.path.join(outer_dir, 'Processed_Audits'),
+            outer_dir,
+            os.path.join(current_dir, 'Processed_Audits'),
+            os.path.join(current_dir, 'Finished PDFs')
+        ])
+        
+        for sd in search_dirs:
             fp = find_file_case_insensitive(sd, original_filename)
             if fp:
                 found_path = fp
@@ -460,55 +424,6 @@ def save_record(report_date, category, sub_category, location, quantity, unit, s
     conn.commit()
     conn.close()
     return True
-
-def resolve_pdf_path(stored_path, filename):
-    """Returns a usable path for a referenced PDF.
-
-    Order: keep the stored path if it still exists, otherwise look the file up by
-    name inside every configured folder. This is what makes the app work after the
-    project (and its reference folders) were moved to drive D:.
-    """
-    if stored_path and os.path.exists(str(stored_path)):
-        return str(stored_path)
-    if filename and str(filename).strip() not in ("", "None", "nan"):
-        for sd in get_pdf_search_dirs():
-            fp = find_file_case_insensitive(sd, str(filename))
-            if fp:
-                return fp
-    return None
-
-
-def repair_stored_pdf_paths():
-    """Rewrites stale pdf_path values so they point into the configured folders.
-
-    Returns (fixed_count, missing_count). Already-valid paths are left untouched.
-    """
-    conn = sqlite3.connect(DB_NAME)
-    cursor = conn.cursor()
-    rows = cursor.execute("SELECT id, pdf_filename, pdf_path FROM master_registry").fetchall()
-    search_dirs = get_pdf_search_dirs()
-    fixed = 0
-    missing = 0
-    for rid, fname, old_path in rows:
-        if old_path and os.path.exists(str(old_path)):
-            continue
-        if not fname or str(fname).strip() in ("", "None", "nan"):
-            continue
-        new_path = None
-        for sd in search_dirs:
-            new_path = find_file_case_insensitive(sd, str(fname))
-            if new_path:
-                break
-        if new_path:
-            if str(new_path) != str(old_path):
-                cursor.execute("UPDATE master_registry SET pdf_path = ? WHERE id = ?", (new_path, rid))
-                fixed += 1
-        else:
-            missing += 1
-    conn.commit()
-    conn.close()
-    return fixed, missing
-
 
 def delete_record(record_id):
     """Deletes a record and its associated archived PDF if present."""
@@ -980,45 +895,17 @@ menu = st.sidebar.radio(
 
 st.sidebar.markdown("<br>", unsafe_allow_html=True)
 with st.sidebar.expander("\u2699\ufe0f Paths & References Settings", expanded=False):
-    st.caption("EIMS reads the scanned PDF reports and the processed HTML audits from the folders below. "
-               "Changes are saved permanently in the database and applied immediately - no code editing needed.")
-
-    _cur_pdf   = get_setting("pdf_dir", "") or DEFAULT_PDF_DIR
-    _cur_html  = get_setting("html_dir", "") or DEFAULT_HTML_DIR
-    _cur_extra = get_setting("extra_pdf_dirs", "") or ""
-
-    _new_pdf   = st.text_input("\U0001F4C1 PDF reports folder (scanned PDFs):", value=_cur_pdf, key="cfg_pdf_dir")
-    _new_html  = st.text_input("\U0001F310 HTML audits folder (Processed_Audits):", value=_cur_html, key="cfg_html_dir")
-    _new_extra = st.text_area("Additional search folders (one per line, optional):", value=_cur_extra,
-                              key="cfg_extra_dirs", height=68)
-
-    for _label, _d in (("PDFs", _new_pdf), ("HTML", _new_html)):
-        if _d and os.path.isdir(_d):
-            try:
-                _n = len([f for f in os.listdir(_d) if os.path.isfile(os.path.join(_d, f))])
-            except Exception:
-                _n = 0
-            st.markdown(f"\u2705 **{_label}**: `{_d}` - {_n} file(s)")
-        else:
-            st.markdown(f"\u274C **{_label}**: `{_d}` - folder not found")
-
-    _c1, _c2 = st.columns(2)
-    with _c1:
-        if st.button("\U0001F4BE Save paths", use_container_width=True, key="cfg_save_paths"):
-            save_setting("pdf_dir", (_new_pdf or "").strip())
-            save_setting("html_dir", (_new_html or "").strip())
-            save_setting("extra_pdf_dirs", _new_extra or "")
-            # keep the legacy key in sync so older parts never break
-            save_setting("custom_pdf_dir", (_new_pdf or "").strip())
-            st.success("Paths saved successfully.")
-            st.rerun()
-    with _c2:
-        if st.button("\U0001F527 Fix stored PDF links", use_container_width=True, key="cfg_fix_paths",
-                     help="Rewrite the PDF paths saved inside the database so they point to the folders above. "
-                          "Use this after moving the PDF files to a new drive/folder."):
-            _fixed, _missing = repair_stored_pdf_paths()
-            st.success(f"Updated {_fixed} link(s)." + (f" {_missing} file(s) could not be found." if _missing else ""))
-            st.rerun()
+    current_custom_dir = get_setting("custom_pdf_dir", "")
+    custom_pdf_dir = st.text_input(
+        "\U0001F4C1 Custom PDF Folder Path:",
+        value=current_custom_dir,
+        placeholder="Example: D:/MyProject/PDFs",
+        help="If specified, EIMS will search this folder for PDF references automatically during import."
+    )
+    if custom_pdf_dir != current_custom_dir:
+        save_setting("custom_pdf_dir", custom_pdf_dir.strip())
+        st.success("\U0001F4BE Path saved successfully!")
+        st.rerun()
 
 st.sidebar.markdown("""
     <div style="position: fixed; bottom: 10px; left: 10px; right: 10px; font-size: 0.8rem; color: #64748b; text-align: center; border-top: 1px solid rgba(226, 232, 240, 0.05); padding-top: 10px;">
@@ -1156,34 +1043,8 @@ if menu == "\U0001F4CA Master Dashboard":
             
         if sel_status != "All":
             df_filtered = df_filtered[df_filtered['status'] == sel_status]
-
-        # --- Ordering control -------------------------------------------------
-        # Default = newest imported first (highest Record ID). This guarantees that a
-        # freshly imported batch is always visible at the TOP of the registry, even
-        # when the sheets carry an older report date than the rest of the records.
-        _sort_choices = [
-            "\U0001F195 Newest imported first (Record ID \u2193)",
-            "\U0001F4C5 Report date \u2193 (newest work first)",
-            "\U0001F4C5 Report date \u2191 (oldest work first)",
-            "\U0001F522 Record ID \u2191 (oldest imported first)",
-        ]
-        _sel_sort = st.selectbox("\U0001F522 Sort registry by:", _sort_choices, index=0)
-        if _sel_sort == _sort_choices[0]:
-            df_filtered = df_filtered.sort_values("id", ascending=False)
-        elif _sel_sort == _sort_choices[1]:
-            _dt = pd.to_datetime(df_filtered["report_date"], format="%d-%m-%Y", errors="coerce")
-            df_filtered = df_filtered.assign(_dt=_dt).sort_values(["_dt", "id"], ascending=[False, False]).drop(columns=["_dt"])
-        elif _sel_sort == _sort_choices[2]:
-            _dt = pd.to_datetime(df_filtered["report_date"], format="%d-%m-%Y", errors="coerce")
-            df_filtered = df_filtered.assign(_dt=_dt).sort_values(["_dt", "id"], ascending=[True, True]).drop(columns=["_dt"])
-        else:
-            df_filtered = df_filtered.sort_values("id", ascending=True)
-
+            
         st.markdown(f"\U0001F4CA Found **{len(df_filtered)}** inspection records matching the current filters.")
-        st.caption(
-            f"\U0001F4BE Database: `{DB_NAME}` \u2022 total records in DB: **{len(df)}** "
-            f"\u2022 latest record ID: **{int(df['id'].max()) if len(df) else 0}**"
-        )
         
         # Available columns and friendly Arabic headers
         col_options = {
@@ -1325,29 +1186,12 @@ if menu == "\U0001F4CA Master Dashboard":
                 </div>
             """, unsafe_allow_html=True)
             
-            # Robust shared reference PDF lookup.
-            # The stored path is used when it still exists; otherwise the file is looked
-            # up by name inside every configured folder (handles the move to drive D:).
-            target_pdf_path = resolve_pdf_path(row_data['pdf_path'], row_data['pdf_filename'])
+            # Robust shared reference PDF lookup
+            target_pdf_path = row_data['pdf_path']
             target_pdf_filename = row_data['pdf_filename']
             is_shared = False
-
-            if target_pdf_path:
-                try:
-                    target_pdf_filename = os.path.basename(target_pdf_path)
-                except Exception:
-                    pass
-                # Persist the repaired path so future opens are instant
-                if not row_data['pdf_path'] or str(row_data['pdf_path']) != str(target_pdf_path):
-                    try:
-                        _conn_fix = sqlite3.connect(DB_NAME)
-                        _conn_fix.execute("UPDATE master_registry SET pdf_path = ? WHERE id = ?",
-                                          (target_pdf_path, int(row_data['id'])))
-                        _conn_fix.commit()
-                        _conn_fix.close()
-                    except Exception:
-                        pass
-            else:
+            
+            if not target_pdf_path or not os.path.exists(str(target_pdf_path)):
                 # Look for another activity with the same report_date and category that HAS a valid PDF!
                 conn_pdf = sqlite3.connect(DB_NAME)
                 cursor_pdf = conn_pdf.cursor()
@@ -1359,12 +1203,10 @@ if menu == "\U0001F4CA Master Dashboard":
                 alt_pdf = cursor_pdf.fetchone()
                 conn_pdf.close()
                 
-                if alt_pdf and alt_pdf[0]:
-                    _alt_path = resolve_pdf_path(alt_pdf[0], alt_pdf[1])
-                    if _alt_path:
-                        target_pdf_path = _alt_path
-                        target_pdf_filename = alt_pdf[1] or os.path.basename(_alt_path)
-                        is_shared = True
+                if alt_pdf and alt_pdf[0] and os.path.exists(alt_pdf[0]):
+                    target_pdf_path = alt_pdf[0]
+                    target_pdf_filename = alt_pdf[1]
+                    is_shared = True
 
             if target_pdf_path and os.path.exists(str(target_pdf_path)):
                 c1, c2, c3 = st.columns([1, 1, 1])
@@ -1379,15 +1221,9 @@ if menu == "\U0001F4CA Master Dashboard":
                         except Exception as e:
                             st.error(f"Could not open the file locally: {e}")
                 with c2:
-                    # New button: Open HTML (looks in the configured HTML folder, then everywhere else)
+                    # New button: Open HTML
                     html_filename = os.path.splitext(target_pdf_filename)[0] + ".html"
-                    html_path = os.path.join(get_html_dir(), html_filename)
-                    if not os.path.exists(html_path):
-                        for _sd in get_pdf_search_dirs():
-                            _found_html = find_file_case_insensitive(_sd, html_filename)
-                            if _found_html:
-                                html_path = _found_html
-                                break
+                    html_path = os.path.join(HTML_DIR, html_filename)
                     if st.button("\U0001F310 Open HTML", use_container_width=True):
                         if os.path.exists(html_path):
                             try:
