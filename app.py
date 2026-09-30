@@ -316,7 +316,11 @@ def export_excel(df, period_label):
         num = wb.add_format({"border": 1, "num_format": "#,##0.0"})
         for i, col in enumerate(work.columns):
             ws.write(0, i, col, header)
-            width = min(max(len(col) + 4, int(work[col].astype(str).map(len).max() if len(work) else 10) + 2), 38)
+            # .str.len() is used instead of .map(len): on pandas 3 (Streamlit Cloud) the
+            # default text dtype is Arrow-backed, astype(str) keeps missing values as
+            # NaN/NA, and .map(len) then raises TypeError on those missing values.
+            max_len = int(work[col].astype(str).str.len().fillna(0).max()) if len(work) else 10
+            width = min(max(len(col) + 4, max_len + 2), 38)
             ws.set_column(i, i, width)
         for r in range(len(work)):
             for c in range(len(work.columns)):
